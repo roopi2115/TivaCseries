@@ -1,0 +1,83 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_memmap.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+#include "driverlib/uart.h"
+#include "driverlib/pin_map.h"
+#include "utils/uartstdio.h"
+
+#define ROW_PORT GPIO_PORTB_BASE
+#define COL_PORT GPIO_PORTB_BASE
+
+uint8_t row_pins[4] = {GPIO_PIN_0, GPIO_PIN_1, GPIO_PIN_2, GPIO_PIN_3};
+uint8_t col_pins[4] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_6, GPIO_PIN_7};
+
+char keypad[4][4] = {
+    {'1', '2', '3', 'A'},
+    {'4', '5', '6', 'B'},
+    {'7', '8', '9', 'C'},
+    {'*', '0', '#', 'D'}
+};
+
+void UART0_Init(void) {
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
+
+    GPIOPinConfigure(GPIO_PA0_U0RX);
+    GPIOPinConfigure(GPIO_PA1_U0TX);
+    GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+
+    UARTClockSourceSet(UART0_BASE, UART_CLOCK_PIOSC);
+    UARTStdioConfig(0, 9600, 16000000);
+}
+
+void Keypad_Init(void) {
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPIOB));
+
+    // Rows as output
+    GPIOPinTypeGPIOOutput(ROW_PORT, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3);
+
+    // Columns as input with pull-up
+    GPIOPinTypeGPIOInput(COL_PORT, GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7);
+    GPIOPadConfigSet(COL_PORT, GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7,
+                     GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+}
+
+char Keypad_Read(void) {
+    for (int row = 0; row < 4; row++) {
+        // Drive all rows HIGH
+        GPIOPinWrite(ROW_PORT, 0x0F, 0x0F);
+        // Drive current row LOW
+        GPIOPinWrite(ROW_PORT, row_pins[row], 0x00);
+
+        // Check each column
+        for (int col = 0; col < 4; col++) {
+            if (!(GPIOPinRead(COL_PORT, col_pins[col]))) {
+                SysCtlDelay(SysCtlClockGet() / 1000); // debounce
+                while (!(GPIOPinRead(COL_PORT, col_pins[col]))); // wait release
+                return keypad[row][col];
+            }
+        }
+    }
+    return 0;
+}
+
+int main(void) {
+    SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL |
+                   SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+
+    UART0_Init();
+    Keypad_Init();
+
+    UARTprintf("Keypad Ready\n");
+
+    while(1) {
+        char key = Keypad_Read();
+        if (key) {
+            UARTprintf("Key Pressed: %c\n", key);
+            SysCtlDelay(SysCtlClockGet() / 6); // delay for visibility
+        }
+    }
+}
