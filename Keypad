@@ -1,0 +1,47 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include "tm4c123gh6pm.h"
+
+// Delay function (approx. 1ms delay at 16 MHz system clock)
+void delay_ms(int ms) {
+    for(int i = 0; i < ms * 3180; i++) {
+        __asm("NOP");
+    }
+}
+
+// Keypad initialization
+void keypad_init(void) {
+    // Enable clock for Port C and Port D
+    SYSCTL_RCGCGPIO_R |= (1 << 2) | (1 << 3); // Port C = 2, Port D = 3
+    while ((SYSCTL_PRGPIO_R & ((1 << 2) | (1 << 3))) == 0); // Wait until ready
+
+    // PORTD (PD0–PD3) as output – Rows
+    GPIO_PORTD_DIR_R |= 0x0F;
+    GPIO_PORTD_DEN_R |= 0x0F;
+    GPIO_PORTD_AFSEL_R &= ~0x0F;
+    GPIO_PORTD_AMSEL_R &= ~0x0F;
+
+    // PORTC (PC4–PC7) as input – Columns
+    GPIO_PORTC_DIR_R &= ~0xF0;
+    GPIO_PORTC_DEN_R |= 0xF0;
+    GPIO_PORTC_PUR_R |= 0xF0;     // Enable pull-up resistors
+    GPIO_PORTC_AFSEL_R &= ~0xF0;
+    GPIO_PORTC_AMSEL_R &= ~0xF0;
+}
+
+// Keypad scan function
+char keypad_scan(void) {
+    char keys[4][4] = {
+        {'1', '2', '3', 'A'},
+        {'4', '5', '6', 'B'},
+        {'7', '8', '9', 'C'},
+        {'*', '0', '#', 'D'}
+    };
+
+    for (int row = 0; row < 4; row++) {
+        // Set one row LOW, others HIGH
+        GPIO_PORTD_DATA_R = ~(1 << row) & 0x0F;
+
+        delay_ms(2); // Short delay
+}
+}
