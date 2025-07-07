@@ -1,0 +1,41 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_memmap.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+
+int main(void)
+{
+    // Set system clock to 50 MHz
+    SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL |
+                   SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+
+    // Enable GPIO Port F
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+    while (!SysCtlPeripheralReady(SYSCTL_PERIPH_GPIOF)) {}
+
+    // Set PF1 as output (Red LED)
+    GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_1);
+
+    // Set PF4 as input (Switch)
+    GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, GPIO_PIN_4);
+
+    // Enable internal pull-up resistor on PF4
+    GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_4,
+                     GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+
+    while (1)
+    {
+        // Switch is active-low (pressed = 0)
+        if (GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4) == 0)
+        {
+            // Turn on Red LED
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, GPIO_PIN_1);
+        }
+        else
+        {
+            // Turn off LED
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0x00);
+        }
+    }
+}
